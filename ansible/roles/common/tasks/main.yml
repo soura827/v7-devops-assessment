@@ -1,0 +1,32 @@
+---
+- name: Ensure ansible_user exists
+  ansible.builtin.user:
+    name: ansible_user
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Install SSH public key for ansible_user
+  ansible.posix.authorized_key:
+    user: ansible_user
+    state: present
+    key: "{{ lookup('file', '/home/soura/.ssh/v7_ansible.pub') }}"
+
+- name: Grant ansible_user passwordless sudo
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/ansible_user
+    content: "ansible_user ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - docker.io
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

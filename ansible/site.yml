@@ -1,0 +1,10 @@
+---
+- name: Configure V7 DevOps assessment VMs
+  hosts: vms
+  become: true
+
+  roles:
+    - common
+    - ssh
+    - firewall
+    - nginx

@@ -1,0 +1,92 @@
+---
+- name: Install Nginx and OpenSSL
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - openssl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create SSL directory
+  ansible.builtin.file:
+    path: /etc/nginx/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: inventory_hostname == 'vm1'
+
+- name: Generate self-signed SSL certificate
+  ansible.builtin.command:
+    cmd: >
+      openssl req -x509 -nodes -days 365
+      -newkey rsa:2048
+      -keyout /etc/nginx/ssl/assessment.key
+      -out /etc/nginx/ssl/assessment.crt
+      -subj "/C=IN/ST=Karnataka/L=Bengaluru/O=V7AI/CN=public.vm1.local"
+  args:
+    creates: /etc/nginx/ssl/assessment.crt
+  when: inventory_hostname == 'vm1'
+  notify: Validate and reload nginx
+
+- name: Set SSL private key permissions
+  ansible.builtin.file:
+    path: /etc/nginx/ssl/assessment.key
+    owner: root
+    group: root
+    mode: '0600'
+  when: inventory_hostname == 'vm1'
+
+- name: Set SSL certificate permissions
+  ansible.builtin.file:
+    path: /etc/nginx/ssl/assessment.crt
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname == 'vm1'
+
+- name: Create assessment web root
+  ansible.builtin.file:
+    path: /var/www/assessment
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Deploy dynamic assessment page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: /var/www/assessment/index.html
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  notify: Validate and reload nginx
+
+- name: Deploy Nginx site
+  ansible.builtin.template:
+    src: assessment.conf.j2
+    dest: /etc/nginx/sites-available/assessment.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Validate and reload nginx
+
+- name: Disable default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Validate and reload nginx
+
+- name: Enable assessment Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/assessment.conf
+    dest: /etc/nginx/sites-enabled/assessment.conf
+    state: link
+  notify: Validate and reload nginx
+
+- name: Ensure Nginx is enabled and running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
